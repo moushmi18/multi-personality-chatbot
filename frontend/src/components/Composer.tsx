@@ -1,5 +1,6 @@
 import { useEffect, useImperativeHandle, useRef, forwardRef } from "react";
-import { SendIcon } from "../icons";
+import { motion } from "framer-motion";
+import { Send } from "lucide-react";
 
 type Props = {
   value: string;
@@ -7,12 +8,13 @@ type Props = {
   onSend: () => void;
   disabled: boolean;
   placeholder: string;
+  accentColor?: string;
 };
 
 export type ComposerHandle = { focus: () => void };
 
 export const Composer = forwardRef<ComposerHandle, Props>(function Composer(
-  { value, onChange, onSend, disabled, placeholder },
+  { value, onChange, onSend, disabled, placeholder, accentColor },
   handleRef,
 ) {
   const ref = useRef<HTMLTextAreaElement>(null);
@@ -35,7 +37,7 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer(
   }
 
   return (
-    <div className="composer">
+    <div className="composer" style={{ "--composer-color": accentColor } as React.CSSProperties}>
       <div className="composer-inner">
         <textarea
           ref={ref}
@@ -46,16 +48,20 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer(
           rows={1}
           disabled={disabled}
         />
-        <button
+        <motion.button
           className="send-btn"
           onClick={onSend}
           disabled={disabled || !value.trim()}
-          aria-label="Send"
+          aria-label="Send message"
+          whileHover={{ scale: disabled ? 1 : 1.05 }}
+          whileTap={{ scale: disabled ? 1 : 0.95 }}
         >
-          <SendIcon />
-        </button>
+          <Send size={18} />
+        </motion.button>
       </div>
-      <p className="composer-hint">Enter to send &middot; Shift + Enter for newline</p>
+      <p className="composer-hint">
+        Enter to send · Shift+Enter for newline
+      </p>
     </div>
   );
 });

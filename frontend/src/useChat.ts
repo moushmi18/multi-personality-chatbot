@@ -160,10 +160,21 @@ export function useChat() {
     return true;
   }
 
+  function loadConversation(personality: PersonalityKey, items: ChatItem[]) {
+    setState((s) => ({
+      ...s,
+      active: personality,
+      items,
+      streaming: false,
+      waitingForFirstToken: false,
+    }));
+  }
+
   return {
     ...state,
     setActive,
     clearChat,
     sendMessage,
+    loadConversation,
   };
 }

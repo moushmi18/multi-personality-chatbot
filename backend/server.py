@@ -1,6 +1,5 @@
 import json
 import os
-from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import AsyncIterator, Literal
 
@@ -133,7 +132,7 @@ PersonalityKey = Literal[
 ]
 
 GROQ_BASE_URL = "https://api.groq.com/openai/v1"
-MODEL = "llama-3.3-70b-versatile"
+MODEL = os.environ.get("GROQ_MODEL", "openai/gpt-oss-120b")
 
 
 def detect_mode_switch(user_input: str) -> str | None:
@@ -162,17 +161,7 @@ class ChatRequest(BaseModel):
     personality: PersonalityKey
 
 
-@asynccontextmanager
-async def lifespan(_app: FastAPI):
-    if not os.environ.get("GROQ_API_KEY"):
-        raise RuntimeError(
-            "GROQ_API_KEY is not set. Get a free key at https://console.groq.com "
-            "and put it in backend/.env (see .env.example) or export it in your shell."
-        )
-    yield
-
-
-app = FastAPI(lifespan=lifespan)
+app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
@@ -181,10 +170,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-client = AsyncOpenAI(
-    api_key=os.environ.get("GROQ_API_KEY", ""),
-    base_url=GROQ_BASE_URL,
-)
+def get_client() -> AsyncOpenAI:
+    api_key = os.environ.get("GROQ_API_KEY")
+    if not api_key:
+        raise HTTPException(
+            status_code=500,
+            detail="GROQ_API_KEY is not set. Add it to Vercel environment variables.",
+        )
+    return AsyncOpenAI(api_key=api_key, base_url=GROQ_BASE_URL)
 
 
 def sse(payload: dict) -> str:
@@ -201,6 +194,7 @@ async def list_personalities():
 
 @app.post("/api/chat")
 async def chat(req: ChatRequest):
+    client = get_client()
     if req.personality not in PERSONALITIES:
         raise HTTPException(status_code=400, detail="Unknown personality")
     if not req.messages or req.messages[-1].role != "user":
@@ -229,9 +223,10 @@ async def chat(req: ChatRequest):
             async for chunk in response:
                 if not chunk.choices:
                     continue
-                delta = chunk.choices[0].delta.content
-                if delta:
-                    yield sse({"type": "text", "text": delta})
+                delta = chunk.choices[0].delta
+                content = getattr(delta, "content", None)
+                if content:
+                    yield sse({"type": "text", "text": content})
             yield sse({"type": "done"})
         except Exception as e:
             yield sse({"type": "error", "message": str(e)})
